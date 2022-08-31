@@ -1,50 +1,17 @@
-import { Address, ipfs, json } from "@graphprotocol/graph-ts"
+import { Address, ipfs, json } from "@graphprotocol/graph-ts";
 import {
   ConfirmedAttendee,
   NewEventCreated,
   NewRSVP,
   DepositsPaidOut,
-} from "../generated/Web3RSVP/Web3RSVP"
-import {  Account, RSVP, Confirmation, Event } from "../generated/schema";
+} from "../generated/Web3RSVP/Web3RSVP";
+import { Account, RSVP, Confirmation, Event } from "../generated/schema";
 import { integer } from "@protofire/subgraph-toolkit";
-
-export function handleConfirmedAttendee(event: ConfirmedAttendee): void {
-  let id = event.params.eventID.toHex() + event.params.attendeeAddress.toHex();
-  let newConfirmation = Confirmation.load(id);
-  let account = getOrCreateAccount(event.params.attendeeAddress);
-  let thisEvent = Event.load(event.params.eventID.toHex());
-  if (newConfirmation == null && thisEvent != null) {
-    newConfirmation = new Confirmation(id);
-    newConfirmation.attendee = account.id;
-    newConfirmation.event = thisEvent.id;
-    newConfirmation.save();
-
-    thisEvent.totalConfirmedAttendees = integer.increment(
-      thisEvent.totalConfirmedAttendees
-    );
-    thisEvent.save();
-
-    account.totalAttendedEvents = integer.increment(
-      account.totalAttendedEvents
-    );
-    account.save();
-  }
-}
-
-export function handleDepositsPaidOut(event: DepositsPaidOut): void {
-  let thisEvent = Event.load(event.params.eventID.toHex());
-  if (thisEvent) {
-    thisEvent.paidOut = true;
-    thisEvent.save();
-  }
-}
 
 export function handleNewEventCreated(event: NewEventCreated): void {
   let newEvent = Event.load(event.params.eventID.toHex());
-  
   if (newEvent == null) {
     newEvent = new Event(event.params.eventID.toHex());
-    
     newEvent.eventID = event.params.eventID;
     newEvent.eventOwner = event.params.creatorAddress;
     newEvent.eventTimestamp = event.params.eventTimestamp;
@@ -55,10 +22,10 @@ export function handleNewEventCreated(event: NewEventCreated): void {
     newEvent.totalConfirmedAttendees = integer.ZERO;
 
     let metadata = ipfs.cat(event.params.eventDataCID + "/data.json");
+    
 
     if (metadata) {
       const value = json.fromBytes(metadata).toObject();
-
       if (value) {
         const name = value.get("name");
         const description = value.get("description");
@@ -77,13 +44,19 @@ export function handleNewEventCreated(event: NewEventCreated): void {
           newEvent.link = link.toString();
         }
 
-        let imageURL = "https://ipfs.io/ipfs/bafybeibssbrlptcefbqfh4vpw2wlmqfj2kgxt3nil4yujxbmdznau3t5wi/event.png";
-        if (imagePath) {
-          imageURL = "https://ipfs.io/ipfs/" + event.params.eventDataCID + imagePath.toString();
-        } 
-        newEvent.imageURL = imageURL;
+        if(imagePath){
+          const imageURL =
+      "https://ipfs.io/ipfs/" + event.params.eventDataCID + imagePath.toString();
+          newEvent.imageURL = imageURL;
+        } else {
+          const fallbackURL = "https://ipfs.io/ipfs/bafybeibssbrlptcefbqfh4vpw2wlmqfj2kgxt3nil4yujxbmdznau3t5wi/event.png";
+          newEvent.imageURL = fallbackURL;
+        }
+
+        
       }
     }
+
     newEvent.save();
   }
 }
@@ -113,5 +86,34 @@ export function handleNewRSVP(event: NewRSVP): void {
     thisEvent.save();
     account.totalRSVPs = integer.increment(account.totalRSVPs);
     account.save();
+  }
+}
+
+export function handleConfirmedAttendee(event: ConfirmedAttendee): void {
+  let id = event.params.eventID.toHex() + event.params.attendeeAddress.toHex();
+  let newConfirmation = Confirmation.load(id);
+  let account = getOrCreateAccount(event.params.attendeeAddress);
+  let thisEvent = Event.load(event.params.eventID.toHex());
+  if (newConfirmation == null && thisEvent != null) {
+    newConfirmation = new Confirmation(id);
+    newConfirmation.attendee = account.id;
+    newConfirmation.event = thisEvent.id;
+    newConfirmation.save();
+    thisEvent.totalConfirmedAttendees = integer.increment(
+      thisEvent.totalConfirmedAttendees
+    );
+    thisEvent.save();
+    account.totalAttendedEvents = integer.increment(
+      account.totalAttendedEvents
+    );
+    account.save();
+  }
+}
+
+export function handleDepositsPaidOut(event: DepositsPaidOut): void {
+  let thisEvent = Event.load(event.params.eventID.toHex());
+  if (thisEvent) {
+    thisEvent.paidOut = true;
+    thisEvent.save();
   }
 }
